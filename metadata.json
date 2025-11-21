@@ -1,0 +1,7 @@
+{
+  "name": "ConciergeAI: Your Intelligent Hotel Assistant",
+  "description": "An AI-powered hotel concierge that assists with reservations, local information, and guest services.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
