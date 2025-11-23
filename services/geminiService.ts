@@ -22,10 +22,12 @@ PRINCIPLES:
 3. Respect privacy: never reveal private PII unless the caller is authenticated.
 4. Fail safely: if uncertain or outside permissions, ask for human override.
 
-TOOL USE:
-- Use "Google Search" to find external local information, recommendations, or services (e.g., "Find Italian restaurants nearby", "Book a chauffeur").
-- Use hotel operation tools (makeReservation, etc.) for internal hotel booking management.
-- You can combine information from search to help users make decisions before booking.`;
+TOOL USAGE RULES:
+- You have access to different tools depending on the mode.
+- In 'Quick' or 'Voice' mode, you can manage reservations (make/modify/cancel).
+- In 'Detailed' mode, you have access to Google Search to find external information.
+- If a user asks for a reservation in Detailed mode, ask them to switch to Quick mode or Voice mode.
+- If a user asks for external info in Quick mode, ask them to switch to Detailed mode.`;
 
 const makeReservation: FunctionDeclaration = {
   name: 'makeReservation',
@@ -86,17 +88,16 @@ const cancelReservation: FunctionDeclaration = {
   },
 };
 
-// Merge Google Search and Function Declarations into a SINGLE tool object.
-const tools = [
-  {
-    googleSearch: {},
-    functionDeclarations: [makeReservation, checkAvailability, modifyReservation, cancelReservation]
-  }
+// Tool Configuration
+// We must separate tools because mixing Google Search and Function Declarations
+// in the same request causes a 400 INVALID_ARGUMENT error.
+
+const functionTools = [
+  { functionDeclarations: [makeReservation, checkAvailability, modifyReservation, cancelReservation] }
 ];
 
-// Live API config (no search)
-const liveTools = [
-  { functionDeclarations: [makeReservation, checkAvailability, modifyReservation, cancelReservation] }
+const searchTools = [
+  { googleSearch: {} }
 ];
 
 const getModelForMode = (mode: ChatMode) => {
@@ -104,7 +105,7 @@ const getModelForMode = (mode: ChatMode) => {
     case ChatMode.QUICK:
       return 'gemini-2.5-flash';
     case ChatMode.DETAILED:
-      return 'gemini-3-pro-preview';
+      return 'gemini-2.5-flash'; // Using flash for consistency and speed with search
     default:
       return 'gemini-2.5-flash';
   }
@@ -174,10 +175,14 @@ export const sendMessage = async (history: Message[], newMessage: string, mode: 
     systemInstruction: systemInstruction,
   };
 
-  config.tools = tools;
-  
+  // Select tools based on mode to avoid conflict
   if (mode === ChatMode.DETAILED) {
-    config.thinkingConfig = { thinkingBudget: 32768 };
+    config.tools = searchTools;
+    // We do NOT set thinkingConfig here if we are using search, 
+    // to keep the configuration simple and robust against conflicts.
+  } else {
+    // QUICK and VOICE modes use functions
+    config.tools = functionTools;
   }
 
   let currentAttempt = 0;
@@ -209,7 +214,6 @@ export const sendMessage = async (history: Message[], newMessage: string, mode: 
       // Augment the error message with location information
       const locationInfo = `[File: services/geminiService.ts, Function: sendMessage, Model: ${getModelForMode(mode)}]`;
       const detailedError = new Error(`${locationInfo} ${error.message}`);
-      // Attach original status if available
       (detailedError as any).status = error.status;
       throw detailedError;
     }
@@ -283,7 +287,7 @@ export const connectLiveSession = (
       systemInstruction: systemInstruction,
       inputAudioTranscription: {},
       outputAudioTranscription: {},
-      tools: liveTools
+      tools: functionTools // Live API uses functions, not search
     },
   });
 
