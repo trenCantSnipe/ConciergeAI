@@ -86,11 +86,10 @@ const cancelReservation: FunctionDeclaration = {
   },
 };
 
+// Define tools as separate objects to avoid serialization errors
 const tools = [
-  {
-    functionDeclarations: [makeReservation, checkAvailability, modifyReservation, cancelReservation],
-    googleSearch: {}
-  }
+  { googleSearch: {} },
+  { functionDeclarations: [makeReservation, checkAvailability, modifyReservation, cancelReservation] }
 ];
 
 const getModelForMode = (mode: ChatMode) => {
@@ -115,7 +114,15 @@ export const sendMessage = async (history: Message[], newMessage: string, mode: 
       if (msg.role === 'tool') {
         if (msg.toolResponses) {
           msg.toolResponses.forEach(fr => {
-            parts.push({ functionResponse: fr });
+            // Explicitly construct valid FunctionResponse object
+            const functionResponse: any = {
+              name: fr.name,
+              response: fr.response,
+            };
+            if (fr.id) {
+               functionResponse.id = fr.id;
+            }
+            parts.push({ functionResponse });
           });
         }
       } else {
@@ -124,7 +131,15 @@ export const sendMessage = async (history: Message[], newMessage: string, mode: 
         }
         if (msg.role === 'model' && msg.toolCalls) {
           msg.toolCalls.forEach(fc => {
-            parts.push({ functionCall: fc });
+             // Explicitly construct valid FunctionCall object
+             const functionCall: any = {
+                name: fc.name,
+                args: fc.args,
+             };
+             if (fc.id) {
+                functionCall.id = fc.id;
+             }
+             parts.push({ functionCall });
           });
         }
       }
@@ -236,4 +251,77 @@ export const connectLiveSession = (
           const inputData = audioProcessingEvent.inputBuffer.getChannelData(0);
           const pcmBlob = createBlob(inputData);
           sessionPromise.then((session) => {
-            session.sendReal
+            session.sendRealtimeInput({ media: pcmBlob });
+          });
+        };
+        
+        source.connect(scriptProcessor);
+        scriptProcessor.connect(inputAudioContext.destination);
+      },
+      onmessage: onMessage,
+      onerror: onError,
+      onclose: onClose,
+    },
+    config: {
+      responseModalities: [Modality.AUDIO],
+      speechConfig: {
+        voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Zephyr' } },
+      },
+      systemInstruction: systemInstruction,
+      inputAudioTranscription: {},
+      outputAudioTranscription: {},
+      tools: tools
+    },
+  });
+
+  return sessionPromise;
+};
+
+export const closeLiveSession = async (session: LiveSession | null) => {
+  if (session) {
+    session.close();
+  }
+  if (scriptProcessor) {
+    scriptProcessor.disconnect();
+  }
+  if (inputAudioContext && inputAudioContext.state !== 'closed') {
+    await inputAudioContext.close();
+  }
+  mediaStream?.getTracks().forEach(track => track.stop());
+};
+
+let nextStartTime = 0;
+const sources = new Set<AudioBufferSourceNode>();
+
+export const playAudio = async (base64EncodedAudioString: string) => {
+  if (!outputAudioContext) {
+    outputAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+  }
+
+  if(outputAudioContext.state === 'suspended') {
+    await outputAudioContext.resume();
+  }
+
+  nextStartTime = Math.max(nextStartTime, outputAudioContext.currentTime);
+  const audioBuffer = await decodeAudioData(decode(base64EncodedAudioString), outputAudioContext, 24000, 1);
+
+  const source = outputAudioContext.createBufferSource();
+  source.buffer = audioBuffer;
+  source.connect(outputAudioContext.destination);
+
+  source.addEventListener('ended', () => {
+    sources.delete(source);
+  });
+
+  source.start(nextStartTime);
+  nextStartTime += audioBuffer.duration;
+  sources.add(source);
+};
+
+export const stopAudio = () => {
+  for (const source of sources.values()) {
+    source.stop();
+    sources.delete(source);
+  }
+  nextStartTime = 0;
+};
