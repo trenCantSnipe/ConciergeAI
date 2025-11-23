@@ -1,4 +1,4 @@
-import { GoogleGenAI, FunctionDeclaration, Type, Chat, LiveSession, LiveServerMessage, Modality, Content, Part, Blob } from '@google/genai';
+import { GoogleGenAI, FunctionDeclaration, Type, Chat, LiveSession, LiveServerMessage, Modality, Content, Part } from '@google/genai';
 import { ChatMode, Message } from '../types';
 import { encode, decode, decodeAudioData } from '../utils/audio';
 
@@ -210,7 +210,7 @@ let outputAudioContext: AudioContext;
 let scriptProcessor: ScriptProcessorNode;
 let mediaStream: MediaStream;
 
-const createBlob = (data: Float32Array): Blob => {
+const createBlob = (data: Float32Array): { mimeType: string, data: string } => {
   const l = data.length;
   const int16 = new Int16Array(l);
   for (let i = 0; i < l; i++) {
@@ -251,7 +251,7 @@ export const connectLiveSession = (
           const inputData = audioProcessingEvent.inputBuffer.getChannelData(0);
           const pcmBlob = createBlob(inputData);
           sessionPromise.then((session) => {
-            session.sendRealtimeInput({ media: pcmBlob });
+            session.sendRealtimeInput({ media: { mimeType: pcmBlob.mimeType, data: pcmBlob.data } });
           });
         };
         
