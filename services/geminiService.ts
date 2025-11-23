@@ -86,10 +86,12 @@ const cancelReservation: FunctionDeclaration = {
   },
 };
 
-// Define tools as separate objects to avoid serialization errors
+// Define tools in a single object to ensure compatibility
 const tools = [
-  { googleSearch: {} },
-  { functionDeclarations: [makeReservation, checkAvailability, modifyReservation, cancelReservation] }
+  {
+    googleSearch: {},
+    functionDeclarations: [makeReservation, checkAvailability, modifyReservation, cancelReservation]
+  }
 ];
 
 const getModelForMode = (mode: ChatMode) => {
