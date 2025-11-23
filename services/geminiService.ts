@@ -86,7 +86,7 @@ const cancelReservation: FunctionDeclaration = {
   },
 };
 
-// Define tools as separate objects for compatibility
+// Define tools. Mixing Google Search and Function Declarations is supported.
 const tools = [
   { googleSearch: {} },
   { functionDeclarations: [makeReservation, checkAvailability, modifyReservation, cancelReservation] }
@@ -120,9 +120,10 @@ export const sendMessage = async (history: Message[], newMessage: string, mode: 
         if (msg.toolResponses) {
           msg.toolResponses.forEach(fr => {
             // Explicitly construct valid FunctionResponse object
+            // Ensure 'response' is a valid object, defaulting to {} if undefined to avoid Rpc errors
             const functionResponse: any = {
               name: fr.name,
-              response: fr.response,
+              response: fr.response || {},
             };
             if (fr.id) {
                functionResponse.id = fr.id;
@@ -137,9 +138,10 @@ export const sendMessage = async (history: Message[], newMessage: string, mode: 
         if (msg.role === 'model' && msg.toolCalls) {
           msg.toolCalls.forEach(fc => {
              // Explicitly construct valid FunctionCall object
+             // Ensure 'args' is a valid object, defaulting to {} if undefined
              const functionCall: any = {
                 name: fc.name,
-                args: fc.args,
+                args: fc.args || {},
              };
              if (fc.id) {
                 functionCall.id = fc.id;

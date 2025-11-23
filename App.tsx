@@ -166,7 +166,7 @@ const App: React.FC = () => {
       }
 
     } catch (error: any) {
-      console.error('Error sending message:', error);
+      console.error('Error sending message (Detailed):', JSON.stringify(error, Object.getOwnPropertyNames(error)));
       let errorMessage = 'An unexpected error occurred. Please try again.';
       if (error instanceof Error) {
         if (error.message.includes('SAFETY')) {
@@ -175,7 +175,7 @@ const App: React.FC = () => {
           errorMessage = 'There is a configuration issue with the application. Please contact support.';
         } else if (error.message.includes('429')) {
           errorMessage = 'You are sending requests too quickly. Please wait a moment and try again.';
-        } else if (error.message.match(/5\d\d/)) {
+        } else if (error.message.match(/5\d\d/) || error.message.includes('RPC')) {
           errorMessage = 'The service is currently unavailable. Please try again later.';
         } else if (error.message.toLowerCase().includes('network') || error.message.toLowerCase().includes('fetch')) {
           errorMessage = 'A network error occurred. Please check your internet connection and try again.';
