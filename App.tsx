@@ -5,6 +5,8 @@ import ChatWindow from './components/ChatWindow';
 import ChatInput from './components/ChatInput';
 import ModeSelector from './components/ModeSelector';
 import * as geminiService from './services/geminiService';
+import TrashIcon from './components/icons/TrashIcon';
+import RefreshIcon from './components/icons/RefreshIcon';
 
 const getInitialMessages = (): Message[] => {
   try {
@@ -289,6 +291,23 @@ const App: React.FC = () => {
     }
   };
 
+  const handleClearChat = () => {
+    if (window.confirm("Are you sure you want to clear the chat history?")) {
+      const initialMsg: Message = {
+        id: 'init-welcome',
+        role: 'model',
+        text: 'Welcome to ConciergeAI. How may I assist you today?',
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      };
+      setMessages([initialMsg]);
+      localStorage.removeItem('concierge-ai-chat-history');
+    }
+  };
+
+  const handleRefresh = () => {
+    window.location.reload();
+  };
+
   useEffect(() => {
     // Cleanup on unmount
     return () => {
@@ -301,10 +320,32 @@ const App: React.FC = () => {
   return (
     <div className="h-screen w-screen flex flex-col font-sans bg-slate-900">
       <header className="p-4 border-b border-slate-700/50 shadow-md z-10 bg-slate-900/80 backdrop-blur-md">
-        <div className="max-w-4xl mx-auto flex flex-col sm:flex-row justify-between items-center space-y-3 sm:space-y-0">
-          <h1 className="text-xl font-bold text-sky-400 tracking-tight">ConciergeAI</h1>
-          <label id="mode-selector-label" className="sr-only">Select a chat mode</label>
-          <ModeSelector aria-labelledby="mode-selector-label" currentMode={chatMode} onModeChange={handleModeChange} disabled={isLoading || isRecording} />
+        <div className="max-w-4xl mx-auto flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+             <h1 className="text-xl font-bold text-sky-400 tracking-tight">ConciergeAI</h1>
+          </div>
+          
+          <div className="order-3 sm:order-2 w-full sm:w-auto flex justify-center">
+             <ModeSelector aria-labelledby="mode-selector-label" currentMode={chatMode} onModeChange={handleModeChange} disabled={isLoading || isRecording} />
+          </div>
+
+          <div className="flex items-center gap-2 order-2 sm:order-3">
+            <button 
+                onClick={handleClearChat}
+                className="p-2 text-slate-400 hover:text-red-400 hover:bg-slate-800 rounded-lg transition-colors"
+                title="Clear Chat"
+                disabled={isLoading}
+            >
+                <TrashIcon />
+            </button>
+            <button 
+                onClick={handleRefresh}
+                className="p-2 text-slate-400 hover:text-sky-400 hover:bg-slate-800 rounded-lg transition-colors"
+                title="Refresh App"
+            >
+                <RefreshIcon />
+            </button>
+          </div>
         </div>
       </header>
       <main className="flex-1 flex flex-col overflow-hidden">
