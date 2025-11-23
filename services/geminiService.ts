@@ -86,12 +86,15 @@ const cancelReservation: FunctionDeclaration = {
   },
 };
 
-// Define tools in a single object to ensure compatibility
+// Define tools as separate objects for compatibility
 const tools = [
-  {
-    googleSearch: {},
-    functionDeclarations: [makeReservation, checkAvailability, modifyReservation, cancelReservation]
-  }
+  { googleSearch: {} },
+  { functionDeclarations: [makeReservation, checkAvailability, modifyReservation, cancelReservation] }
+];
+
+// Live API might not support Google Search yet, so we exclude it to prevent errors
+const liveTools = [
+  { functionDeclarations: [makeReservation, checkAvailability, modifyReservation, cancelReservation] }
 ];
 
 const getModelForMode = (mode: ChatMode) => {
@@ -150,7 +153,9 @@ export const sendMessage = async (history: Message[], newMessage: string, mode: 
         role: (msg.role === 'tool' ? 'user' : msg.role) as 'user' | 'model',
         parts: parts,
       };
-    }).filter(c => c.parts.length > 0);
+    })
+    // Filter out messages with empty parts to prevent 500 errors
+    .filter(c => c.parts.length > 0);
 
   // Add the new user message if provided
   if (newMessage && newMessage.trim()) {
@@ -168,7 +173,7 @@ export const sendMessage = async (history: Message[], newMessage: string, mode: 
     systemInstruction: systemInstruction,
   };
 
-  // Add tools (including search) to both modes
+  // Add tools to config
   config.tools = tools;
   
   if (mode === ChatMode.DETAILED) {
@@ -190,7 +195,7 @@ export const sendMessage = async (history: Message[], newMessage: string, mode: 
     } catch (error: any) {
       // Retry on 5xx (Server Errors) and 429 (Too Many Requests)
       const isRetryable = error.status === 503 || error.status === 500 || error.status === 429 || 
-                          (error.message && (error.message.includes('503') || error.message.includes('500') || error.message.includes('429')));
+                          (error.message && (error.message.includes('503') || error.message.includes('500') || error.message.includes('429') || error.message.includes('RPC')));
       
       if (isRetryable && currentAttempt < maxAttempts) {
         // Exponential backoff: 1000ms, 2000ms
@@ -272,7 +277,7 @@ export const connectLiveSession = (
       systemInstruction: systemInstruction,
       inputAudioTranscription: {},
       outputAudioTranscription: {},
-      tools: tools
+      tools: liveTools // Use liveTools without Google Search
     },
   });
 
