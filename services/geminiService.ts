@@ -86,13 +86,15 @@ const cancelReservation: FunctionDeclaration = {
   },
 };
 
-// Define tools. Mixing Google Search and Function Declarations is supported.
+// Merge Google Search and Function Declarations into a SINGLE tool object.
 const tools = [
-  { googleSearch: {} },
-  { functionDeclarations: [makeReservation, checkAvailability, modifyReservation, cancelReservation] }
+  {
+    googleSearch: {},
+    functionDeclarations: [makeReservation, checkAvailability, modifyReservation, cancelReservation]
+  }
 ];
 
-// Live API might not support Google Search yet, so we exclude it to prevent errors
+// Live API config (no search)
 const liveTools = [
   { functionDeclarations: [makeReservation, checkAvailability, modifyReservation, cancelReservation] }
 ];
@@ -120,7 +122,6 @@ export const sendMessage = async (history: Message[], newMessage: string, mode: 
         if (msg.toolResponses) {
           msg.toolResponses.forEach(fr => {
             // Explicitly construct valid FunctionResponse object
-            // Ensure 'response' is a valid object, defaulting to {} if undefined to avoid Rpc errors
             const functionResponse: any = {
               name: fr.name,
               response: fr.response || {},
@@ -138,7 +139,6 @@ export const sendMessage = async (history: Message[], newMessage: string, mode: 
         if (msg.role === 'model' && msg.toolCalls) {
           msg.toolCalls.forEach(fc => {
              // Explicitly construct valid FunctionCall object
-             // Ensure 'args' is a valid object, defaulting to {} if undefined
              const functionCall: any = {
                 name: fc.name,
                 args: fc.args || {},
@@ -156,7 +156,6 @@ export const sendMessage = async (history: Message[], newMessage: string, mode: 
         parts: parts,
       };
     })
-    // Filter out messages with empty parts to prevent 500 errors
     .filter(c => c.parts.length > 0);
 
   // Add the new user message if provided
@@ -175,7 +174,6 @@ export const sendMessage = async (history: Message[], newMessage: string, mode: 
     systemInstruction: systemInstruction,
   };
 
-  // Add tools to config
   config.tools = tools;
   
   if (mode === ChatMode.DETAILED) {
@@ -195,19 +193,25 @@ export const sendMessage = async (history: Message[], newMessage: string, mode: 
       });
       return response;
     } catch (error: any) {
-      // Retry on 5xx (Server Errors) and 429 (Too Many Requests)
+      // Enhanced Error Logging
+      console.error(`[GeminiService] Error in sendMessage attempt ${currentAttempt}:`, error);
+      
       const isRetryable = error.status === 503 || error.status === 500 || error.status === 429 || 
                           (error.message && (error.message.includes('503') || error.message.includes('500') || error.message.includes('429') || error.message.includes('RPC')));
       
       if (isRetryable && currentAttempt < maxAttempts) {
-        // Exponential backoff: 1000ms, 2000ms
         const delay = 1000 * Math.pow(2, currentAttempt - 1);
         console.warn(`Gemini API Error (${error.status || error.message}). Retrying in ${delay}ms...`);
         await wait(delay);
         continue;
       }
       
-      throw error;
+      // Augment the error message with location information
+      const locationInfo = `[File: services/geminiService.ts, Function: sendMessage, Model: ${getModelForMode(mode)}]`;
+      const detailedError = new Error(`${locationInfo} ${error.message}`);
+      // Attach original status if available
+      (detailedError as any).status = error.status;
+      throw detailedError;
     }
   }
 };
@@ -279,7 +283,7 @@ export const connectLiveSession = (
       systemInstruction: systemInstruction,
       inputAudioTranscription: {},
       outputAudioTranscription: {},
-      tools: liveTools // Use liveTools without Google Search
+      tools: liveTools
     },
   });
 

@@ -115,7 +115,6 @@ const App: React.FC = () => {
     setMessages(prev => [...prev, userMessage]);
     setIsLoading(true);
 
-    // We need a local copy of history because state updates are async
     const history = [...messages, userMessage];
 
     try {
@@ -130,15 +129,12 @@ const App: React.FC = () => {
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
 
-      // Add the initial model response (which might contain tool calls)
       setMessages(prev => [...prev, modelMessage]);
       history.push(modelMessage);
 
-      // Handle Tool Calls if present
       if (response.functionCalls && response.functionCalls.length > 0) {
         const toolResponses = executeMockTools(response.functionCalls);
         
-        // Create the tool response message
         const toolMessage: Message = {
           id: `${Date.now()}-tool`,
           role: 'tool',
@@ -150,7 +146,6 @@ const App: React.FC = () => {
         setMessages(prev => [...prev, toolMessage]);
         history.push(toolMessage);
 
-        // Send the tool outputs back to Gemini
         response = await geminiService.sendMessage(history, "", chatMode);
 
         const finalModelMessage: Message = {
@@ -166,21 +161,21 @@ const App: React.FC = () => {
       }
 
     } catch (error: any) {
-      console.error('Error sending message (Detailed):', JSON.stringify(error, Object.getOwnPropertyNames(error)));
-      let errorMessage = 'An unexpected error occurred. Please try again.';
+      console.error('Error sending message (Detailed):', error);
+      
+      // Construct a technical error message for the user
+      let errorMessage = `Error: ${error.message}`;
+      
       if (error instanceof Error) {
+        // If we attached location info in the service, it will be in the message already.
+        // If not, we can try to infer or just show what we have.
         if (error.message.includes('SAFETY')) {
-          errorMessage = 'The response was blocked for safety reasons. Please try modifying your prompt.';
-        } else if (error.message.includes('API key not valid')) {
-          errorMessage = 'There is a configuration issue with the application. Please contact support.';
-        } else if (error.message.includes('429')) {
-          errorMessage = 'You are sending requests too quickly. Please wait a moment and try again.';
-        } else if (error.message.match(/5\d\d/) || error.message.includes('RPC')) {
-          errorMessage = 'The service is currently unavailable. Please try again later.';
-        } else if (error.message.toLowerCase().includes('network') || error.message.toLowerCase().includes('fetch')) {
-          errorMessage = 'A network error occurred. Please check your internet connection and try again.';
+           errorMessage += '\n(Safety Violation)';
+        } else if (error.message.includes('400')) {
+           errorMessage += '\n(Bad Request - Check Tool/Prompt Config)';
         }
       }
+      
       addMessage('system', errorMessage);
     } finally {
       setIsLoading(false);
@@ -243,7 +238,7 @@ const App: React.FC = () => {
 
   const handleLiveError = useCallback((error: ErrorEvent) => {
     console.error('Live session error:', error);
-    addMessage('system', 'Voice connection error. Please try again.');
+    addMessage('system', `Voice Session Error: ${error.message || 'Unknown error in Live API connection'}`);
     setIsRecording(false);
   }, []);
 
@@ -259,9 +254,9 @@ const App: React.FC = () => {
       liveSession.current = session;
       setIsRecording(true);
       addMessage('system', 'Voice concierge activated. Start speaking...');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to start voice session:', error);
-      addMessage('system', 'Could not access microphone. Please check permissions.');
+      addMessage('system', `Failed to start voice session: ${error.message}`);
       setIsRecording(false);
     }
   }, [handleLiveMessage, handleLiveError, handleLiveClose]);
